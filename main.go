@@ -1,3 +1,4 @@
+// POC Prometheus Text Exporter
 package main
 
 import (
@@ -13,19 +14,19 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type About struct {
-	Branch  string
-	Commit  string
-	Tool    string
-	Version string
-}
-
 var (
 	branch string
 	commit string
 	Debug  bool
 	Path   string
 )
+
+type About struct {
+	Branch  string
+	Commit  string
+	Tool    string
+	Version string
+}
 
 var a = About{
 	Branch:  branch,
@@ -38,7 +39,7 @@ var a = About{
 func Version(b bool) {
 	if b {
 		if a.Commit != "" {
-			// go build -ldflags="-X main.Commit=%(git rev-parse --short HEAD) -X main.Branch=4(git branch 's/\* //')"
+			// go build -ldflags="-X main.commit=$(git rev-parse --short HEAD) -X main.branch=$(git branch | sed 's/\* //')"
 			fmt.Printf("%s v%s (commit:%s branch:%s)\n", a.Tool, a.Version, a.Commit, a.Branch)
 		} else {
 			// go build
@@ -85,8 +86,7 @@ func root(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	tmpl := template.Must(template.ParseFiles("template/index.html"))
 	tmpl.Execute(w, a)
-	//fmt.Fprint(w, static)
-	//log.Printf("%s %s %s %d\n", r.RemoteAddr, r.Method, r.Proto, len(static))
+	log.Printf("%s %s / %s\n", r.RemoteAddr, r.Method, r.Proto)
 }
 
 func metrics(w http.ResponseWriter, r *http.Request) {
