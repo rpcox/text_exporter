@@ -11,6 +11,8 @@ import (
 	"os"
 	"strconv"
 
+	_ "embed"
+
 	"github.com/gorilla/mux"
 )
 
@@ -28,7 +30,7 @@ type About struct {
 	Version string
 }
 
-var a = About{
+var about = About{
 	Branch:  branch,
 	Commit:  commit,
 	Tool:    "Text Exporter",
@@ -38,12 +40,12 @@ var a = About{
 // Display the version and exit
 func Version(b bool) {
 	if b {
-		if a.Commit != "" {
-			// go build -ldflags="-X main.commit=$(git rev-parse --short HEAD) -X main.branch=$(git branch | sed 's/\* //')"
-			fmt.Printf("%s v%s (commit:%s branch:%s)\n", a.Tool, a.Version, a.Commit, a.Branch)
+		if about.Commit != "" {
+			// go build -ldflags="-X main.commit=$(git rev-parse --short HEAD) -X main.bbrnch=$(git branch | sed 's/ * //')"
+			fmt.Printf("%s v%s (commit:%s branch:%s)\n", about.Tool, about.Version, about.Commit, about.Branch)
 		} else {
 			// go build
-			fmt.Printf("%s v%s\n", a.Tool, a.Version)
+			fmt.Printf("%s v%s\n", about.Tool, about.Version)
 		}
 
 		os.Exit(0)
@@ -66,7 +68,7 @@ func InitLogging(fileName string) error {
 	}
 
 	log.Println("BEGIN")
-	log.Printf("%s v%s\n", a.Tool, a.Version)
+	log.Printf("%s v%s\n", about.Tool, about.Version)
 	return nil
 }
 
@@ -81,11 +83,22 @@ func SetAddress(bind string, port int) string {
 	return bind + ":" + p
 }
 
+//go:embed template.html
+var tmplContent string
+
 func root(w http.ResponseWriter, r *http.Request) {
+	//log.Println("about **", about)
+	//log.Println("tmpl **", tmpl)
+	//tmpl = template.Must(template.Parse(tmplContent))
+	tmpl, err := template.New("template").Parse(tmplContent)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	tmpl := template.Must(template.ParseFiles("template/index.html"))
-	tmpl.Execute(w, a)
+	tmpl.Execute(w, about)
 	log.Printf("%s %s / %s\n", r.RemoteAddr, r.Method, r.Proto)
 }
 
@@ -123,6 +136,10 @@ func main() {
 	flag.Parse()
 
 	Version(*_version)
+	if *_path == "" {
+		log.Println("export path (-path) left undefined. option required")
+		os.Exit(1)
+	}
 	Path = *_path
 	InitLogging(*_log)
 
