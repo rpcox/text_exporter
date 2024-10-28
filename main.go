@@ -34,7 +34,7 @@ var about = About{
 	Branch:  branch,
 	Commit:  commit,
 	Tool:    "Text Exporter",
-	Version: "0.1",
+	Version: "0.2.0",
 }
 
 // Display the version and exit
