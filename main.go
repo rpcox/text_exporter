@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -34,7 +35,7 @@ var about = About{
 	Branch:  branch,
 	Commit:  commit,
 	Tool:    "Text Exporter",
-	Version: "0.2.0",
+	Version: "0.3.0",
 }
 
 // Display the version and exit
@@ -53,7 +54,7 @@ func Version(b bool) {
 }
 
 // Initialize logging
-func InitLogging(fileName string) error {
+func StartLogging(fileName, state string) error {
 	fh, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
@@ -67,7 +68,7 @@ func InitLogging(fileName string) error {
 		log.SetFlags(log.Lmicroseconds | log.LUTC | log.Ldate | log.Ldate)
 	}
 
-	log.Println("BEGIN")
+	log.Println(state)
 	log.Printf("%s v%s\n", about.Tool, about.Version)
 	return nil
 }
@@ -127,27 +128,39 @@ func metrics(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func DirExists(path string) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if fi.IsDir() {
+		return nil
+	}
+
+	return errors.New("export path is not a directory")
+}
 func main() {
 	_bind := flag.String("bind", "", "Identify the bind address")
 	_log := flag.String("log", "local.log", "Identify the log file")
-	_path := flag.String("path", "", "Specify the text export directory")
+	_path := flag.String("path", "export", "Specify the text export directory")
 	_port := flag.Int("port", 9101, "Identify the server port")
 	_version := flag.Bool("version", false, "Display the program version and exit")
 	flag.Parse()
 
 	Version(*_version)
-	if *_path == "" {
-		log.Println("export path (-path) left undefined. option required")
-		os.Exit(1)
-	}
-	Path = *_path
-	InitLogging(*_log)
+	StartLogging(*_log, "BEGIN")
+	if err := DirExists(*_path); err != nil {
+		Path = *_path
 
-	r := mux.NewRouter()
-	r.HandleFunc("/", root).Methods("GET")
-	r.HandleFunc("/metrics", metrics).Methods("GET")
+		r := mux.NewRouter()
+		r.HandleFunc("/", root).Methods("GET")
+		r.HandleFunc("/metrics", metrics).Methods("GET")
 
-	if err := http.ListenAndServe(SetAddress(*_bind, *_port), r); err != nil {
+		if err := http.ListenAndServe(SetAddress(*_bind, *_port), r); err != nil {
+			log.Println(err)
+		}
+	} else {
 		log.Println(err)
 	}
 }
