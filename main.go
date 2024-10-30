@@ -10,7 +10,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	_ "embed"
 
@@ -54,11 +56,16 @@ func Version(b bool) {
 }
 
 // Initialize logging
-func StartLogging(fileName, state string) error {
+func StartLogging(fileName, state string, currFile *os.File) *os.File {
+	if currFile != nil {
+		log.Println("closing log")
+		currFile.Close()
+	}
+
 	fh, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
-		return fmt.Errorf("%s: running without logging", err)
+		return nil
 	}
 
 	log.SetOutput(fh)
@@ -70,7 +77,7 @@ func StartLogging(fileName, state string) error {
 
 	log.Println(state)
 	log.Printf("%s v%s\n", about.Tool, about.Version)
-	return nil
+	return fh
 }
 
 // Form an address for ListenAndServe
@@ -140,6 +147,19 @@ func DirExists(path string) error {
 
 	return errors.New("export path is not a directory")
 }
+
+func SigHandler(fileName string, fh *os.File, fp func(string, string, *os.File) *os.File) {
+	currFH := fh
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP)
+
+	for sig := range sigChan {
+		if sig == syscall.SIGHUP {
+			currFH = fp(fileName, "RESTART", currFH)
+		}
+	}
+}
+
 func main() {
 	_bind := flag.String("bind", "", "Identify the bind address")
 	_log := flag.String("log", "local.log", "Identify the log file")
@@ -149,9 +169,12 @@ func main() {
 	flag.Parse()
 
 	Version(*_version)
-	StartLogging(*_log, "BEGIN")
-	if err := DirExists(*_path); err != nil {
+	fh := StartLogging(*_log, "BEGIN", nil)
+	var fp func(string, string, *os.File) *os.File = StartLogging
+
+	if err := DirExists(*_path); err == nil {
 		Path = *_path
+		go SigHandler(*_log, fh, fp)
 
 		r := mux.NewRouter()
 		r.HandleFunc("/", root).Methods("GET")
