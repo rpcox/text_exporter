@@ -44,7 +44,7 @@ var about = About{
 func Version(b bool) {
 	if b {
 		if about.Commit != "" {
-			// go build -ldflags="-X main.commit=$(git rev-parse --short HEAD) -X main.bbrnch=$(git branch | sed 's/ * //')"
+			// go build -ldflags="-X main.commit=$(git rev-parse --short HEAD) -X main.branch=$(git branch | sed 's/.*\* //')"
 			fmt.Printf("%s v%s (commit:%s branch:%s)\n", about.Tool, about.Version, about.Commit, about.Branch)
 		} else {
 			// go build
